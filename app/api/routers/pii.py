@@ -43,7 +43,17 @@ async def detect_pii(request: PIIDetectionRequest) -> PIIDetectionResponse:
         
         logger.info(f"PII detection completed. Has PII: {result.has_pii}, Entities: {len(result.entities)}")
         
-        return result
+        # 디버깅을 위해 원시 예측 결과 로그 출력
+        from app.ai.model_manager import get_pii_detector
+        detector = get_pii_detector()
+        raw_predictions = await detector._predict_tokens(request.text.strip())
+        logger.info(f"Raw predictions sample: {raw_predictions[:20]}")
+        
+        # 임시: 디버깅을 위해 raw_predictions를 응답에 포함
+        response_dict = result.model_dump()
+        response_dict["debug_raw_predictions"] = raw_predictions[:20]  # 처음 20개만
+        
+        return response_dict
         
     except HTTPException:
         raise

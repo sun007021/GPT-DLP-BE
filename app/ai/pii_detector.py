@@ -1,6 +1,7 @@
 # app/ai/pii_detector.py
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
+from app.utils.entity_extractor import extract_bio_entities, has_pii_entities
 
 class RobertaKoreanPIIDetector:
     """
@@ -39,11 +40,11 @@ class RobertaKoreanPIIDetector:
         # 토큰화 및 예측
         predictions = await self._predict_tokens(text)
         
-        # PII 존재 여부 확인
-        has_pii = self._has_pii_tokens(predictions)
+        # 새로운 엔티티 추출 함수 사용
+        entities = extract_bio_entities(predictions, self.tokenizer, text)
         
-        # 엔티티 추출
-        entities = self._extract_entities(text, predictions) if has_pii else []
+        # PII 존재 여부 확인
+        has_pii = has_pii_entities(entities)
         
         return {
             "has_pii": has_pii,
@@ -79,65 +80,3 @@ class RobertaKoreanPIIDetector:
             })
         
         return results
-    
-    def _has_pii_tokens(self, predictions: list[dict[str, any]]) -> bool:
-        """O 태그를 제외한 PII 태그 존재 여부 확인"""
-        return any(pred["label"] != "O" for pred in predictions)
-    
-    def _extract_entities(self, text: str, predictions: list[dict[str, any]]) -> list[dict[str, any]]:
-        """BIO 태그를 기반으로 PII 엔티티 추출"""
-        entities = []
-        current_entity = None
-        
-        for pred in predictions:
-            label = pred["label"]
-            token = pred["token"]
-            
-            if label.startswith("B-"):
-                # 새로운 엔티티 시작
-                if current_entity:
-                    entities.append(self._finalize_entity(current_entity))
-                
-                current_entity = {
-                    "type": label[2:],
-                    "tokens": [token],
-                    "confidences": [pred["confidence"]],
-                    "start_pos": pred["position"]
-                }
-                
-            elif label.startswith("I-") and current_entity:
-                # 기존 엔티티 확장
-                entity_type = label[2:]
-                if current_entity["type"] == entity_type:
-                    current_entity["tokens"].append(token)
-                    current_entity["confidences"].append(pred["confidence"])
-                else:
-                    # 타입이 다르면 기존 엔티티 종료하고 새로 시작
-                    entities.append(self._finalize_entity(current_entity))
-                    current_entity = None
-            else:
-                # O 태그 또는 연속되지 않는 경우
-                if current_entity:
-                    entities.append(self._finalize_entity(current_entity))
-                    current_entity = None
-        
-        # 마지막 엔티티 처리
-        if current_entity:
-            entities.append(self._finalize_entity(current_entity))
-        
-        return entities
-    
-    def _finalize_entity(self, entity: dict[str, any]) -> dict[str, any]:
-        """엔티티 정보 완성"""
-        # 토큰들을 문자열로 변환
-        value = self.tokenizer.convert_tokens_to_string(entity["tokens"])
-        
-        # 평균 신뢰도 계산
-        avg_confidence = sum(entity["confidences"]) / len(entity["confidences"])
-        
-        return {
-            "type": entity["type"],
-            "value": value.strip(),
-            "confidence": avg_confidence,
-            "token_count": len(entity["tokens"])
-        }
