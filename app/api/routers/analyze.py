@@ -70,14 +70,10 @@ async def analyze_comprehensive(
         # 클라이언트 IP 추출
         client_ip = get_client_ip(request)
         
-        # 종합 분석 수행
+        # 종합 분석 수행 (단순화된 API - text만 필요)
         result = await service.analyze_comprehensive(
             text=request_data.text,
-            user_ip=client_ip,
-            similarity_threshold=request_data.similarity_threshold,
-            pii_threshold=request_data.pii_threshold,
-            enable_pii=request_data.enable_pii,
-            enable_similarity=request_data.enable_similarity
+            user_ip=client_ip
         )
         
         logger.info(f"Analysis completed: blocked={result['blocked']}, time={result['analysis_time_ms']}ms")
@@ -184,47 +180,6 @@ async def get_analysis_stats(
         )
 
 
-@router.post(
-    "/pii-only",
-    summary="PII 전용 분석",
-    description="PII 탐지만 수행합니다 (기존 API와 호환성 유지)"
-)
-async def analyze_pii_only(
-    request_data: AnalysisRequest,
-    request: Request,
-    service: IntegratedAnalysisService = Depends(get_analysis_service)
-):
-    """PII 탐지만 수행하는 API (기존 pii.py와 호환성 유지)"""
-    try:
-        # PII만 활성화하여 분석
-        request_data.enable_similarity = False
-        
-        client_ip = get_client_ip(request)
-        
-        result = await service.analyze_comprehensive(
-            text=request_data.text,
-            user_ip=client_ip,
-            pii_threshold=request_data.pii_threshold,
-            enable_pii=True,
-            enable_similarity=False
-        )
-        
-        # PII 분석 결과만 반환 (기존 형식 유지)
-        pii_result = result.get("pii_analysis", {})
-        return {
-            "has_pii": pii_result.get("has_pii", False),
-            "reason": pii_result.get("reason", ""),
-            "details": pii_result.get("details", ""),
-            "entities": pii_result.get("entities", [])
-        }
-        
-    except Exception as e:
-        logger.error(f"PII-only analysis failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"PII analysis failed: {str(e)}"
-        )
-
 
 @router.post(
     "/similarity-only", 
@@ -246,13 +201,10 @@ async def analyze_similarity_only(
     try:
         logger.info(f"Similarity-only analysis request: text_length={len(request_data.text)}")
         
-        # 기본 임계값으로 유사도 분석만 수행
+        # 통합 분석 수행 (두 모델 모두 실행하지만 유사도 결과만 반환)
         result = await service.analyze_comprehensive(
             text=request_data.text,
-            user_ip=None,  # IP 추적하지 않음 (단순화)
-            similarity_threshold=None,  # 기본값 사용
-            enable_pii=False,
-            enable_similarity=True
+            user_ip=None  # IP 추적하지 않음 (단순화)
         )
         
         # 유사도 분석 결과 추출
@@ -304,9 +256,7 @@ async def health_check(
         
         # 간단한 테스트 분석 수행
         test_result = await service.analyze_comprehensive(
-            text="테스트 텍스트입니다.",
-            enable_pii=True,
-            enable_similarity=False  # 벡터 저장소가 비어있을 수 있으므로
+            text="테스트 텍스트입니다."
         )
         
         return {

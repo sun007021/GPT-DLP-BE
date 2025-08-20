@@ -8,12 +8,8 @@ from datetime import datetime
 
 
 class AnalysisRequest(BaseModel):
-    """통합 분석 요청 스키마"""
+    """통합 검사 요청 스키마 (단순화)"""
     text: str = Field(..., min_length=1, max_length=10000, description="분석할 텍스트")
-    similarity_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, description="유사도 임계값 (0.0-1.0)")
-    pii_threshold: Optional[float] = Field(None, ge=0.0, le=1.0, description="PII 탐지 임계값 (0.0-1.0)")
-    enable_pii: bool = Field(True, description="PII 탐지 활성화 여부")
-    enable_similarity: bool = Field(True, description="유사도 분석 활성화 여부")
     
     @validator('text')
     def validate_text(cls, v):
@@ -24,11 +20,7 @@ class AnalysisRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "text": "우리 회사의 기밀 프로젝트 X에 대한 상세 기술 사양서입니다.",
-                "similarity_threshold": 0.85,
-                "pii_threshold": 0.90,
-                "enable_pii": True,
-                "enable_similarity": True
+                "text": "제 번호는 010-1234-5678이고, 우리 회사의 기밀 프로젝트 X 정보입니다."
             }
         }
 
@@ -216,3 +208,4 @@ class SimilarityOnlyResponse(BaseModel):
                 "analysis_time_ms": 250
             }
         }
+
