@@ -27,7 +27,7 @@ class Settings(BaseModel):
     
     # 분석 설정
     DEFAULT_SIMILARITY_THRESHOLD: float = float(os.getenv("DEFAULT_SIMILARITY_THRESHOLD", "0.85"))
-    DEFAULT_PII_THRESHOLD: float = float(os.getenv("DEFAULT_PII_THRESHOLD", "0.90"))
+    DEFAULT_PII_THRESHOLD: float = float(os.getenv("DEFAULT_PII_THRESHOLD", "0.59"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "512"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "50"))
     

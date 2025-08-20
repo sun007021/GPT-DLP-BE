@@ -82,33 +82,9 @@ class IntegratedAnalysisService:
             if similarity_result["is_similar"]:
                 block_reasons.append("similarity_detected")
             
-            # reason과 details 통합 생성
-            pii_reason, pii_details = self._generate_pii_text(pii_result)
-            sim_reason, sim_details = self._generate_similarity_text(similarity_result)
-            
-            # 최종 reason 결합
-            if blocked:
-                if pii_result["has_pii"] and similarity_result["is_similar"]:
-                    reason = "개인정보와 유사 문서가 동시에 탐지되어 차단되었습니다."
-                elif pii_result["has_pii"]:
-                    reason = "개인정보가 탐지되어 차단되었습니다."
-                else:
-                    reason = "유사 문서가 탐지되어 차단되었습니다."
-            else:
-                parts = []
-                if pii_reason:
-                    parts.append(pii_reason)
-                if sim_reason:
-                    parts.append(sim_reason)
-                reason = "검사를 통과했습니다. " + ", ".join(parts) + "."
-            
-            # 최종 details 결합
-            detail_parts = []
-            if pii_details:
-                detail_parts.append(pii_details)
-            if sim_details:
-                detail_parts.append(sim_details)
-            details = ". ".join(detail_parts) + "." if detail_parts else "추가 상세 정보 없음."
+            # reason과 details 통합 생성 (기존 PII API 스타일)
+            reason = self._generate_comprehensive_reason(pii_result, similarity_result)
+            details = self._generate_comprehensive_details(pii_result, similarity_result)
             
             # PII analysis에 통합된 reason/details 추가
             pii_result["reason"] = reason
@@ -338,45 +314,75 @@ class IntegratedAnalysisService:
                 "error": str(e)
             }
     
-    def _generate_pii_text(self, pii_result: Dict[str, Any]) -> tuple[str, str]:
-        """PII 분석 결과에서 reason과 details 텍스트 생성"""
+    def _generate_comprehensive_reason(self, pii_result: Dict[str, Any], similarity_result: Dict[str, Any]) -> str:
+        """종합 분석 결과의 간단한 reason 생성 (기존 PII API 스타일)"""
+        reason_parts = []
+        
+        # PII 부분
         if pii_result["has_pii"]:
             pii_count = len(pii_result["entities"])
-            reason = f"개인정보 {pii_count}개 탐지됨"
-            
-            # PII 상세 정보
+            if pii_count == 1:
+                entity_type = pii_result["entities"][0]["type"]
+                reason_parts.append(f"개인정보 1개 탐지됨 ({entity_type})")
+            else:
+                entity_types = list(set(entity["type"] for entity in pii_result["entities"]))
+                type_str = ", ".join(entity_types)
+                reason_parts.append(f"개인정보 {pii_count}개 탐지됨 ({type_str})")
+        
+        # 유사도 부분
+        if similarity_result["is_similar"]:
+            doc_count = len(similarity_result["matched_documents"])
+            if doc_count == 1:
+                doc_title = similarity_result["matched_documents"][0]["document_title"]
+                similarity_pct = similarity_result["max_similarity"] * 100
+                reason_parts.append(f"유사 문서 1개 탐지됨 ('{doc_title}', {similarity_pct:.1f}%)")
+            else:
+                top_doc = similarity_result["matched_documents"][0]
+                similarity_pct = similarity_result["max_similarity"] * 100
+                reason_parts.append(f"유사 문서 {doc_count}개 탐지됨 (최대: '{top_doc['document_title']}', {similarity_pct:.1f}%)")
+        elif similarity_result["max_similarity"] > 0:
+            # 임계값 이하지만 유사한 문서가 있는 경우
+            similarity_pct = similarity_result["max_similarity"] * 100
+            if similarity_result["matched_documents"]:
+                top_doc = similarity_result["matched_documents"][0]
+                reason_parts.append(f"유사 문서 있음 ('{top_doc['document_title']}', {similarity_pct:.1f}% - 임계값 미만)")
+        
+        # 아무것도 탐지되지 않은 경우
+        if not reason_parts:
+            return "개인정보와 유사 문서가 탐지되지 않았습니다"
+        
+        return ", ".join(reason_parts)
+    
+    def _generate_comprehensive_details(self, pii_result: Dict[str, Any], similarity_result: Dict[str, Any]) -> str:
+        """종합 분석 결과의 상세한 details 생성 (기존 PII API 스타일)"""
+        detail_parts = []
+        
+        # PII 상세 정보
+        if pii_result["has_pii"]:
             pii_details = []
             for entity in pii_result["entities"]:
-                pii_details.append(f"{entity['type']} '{entity['value']}' (신뢰도: {entity['confidence']*100:.1f}%)")
-            details = f"개인정보 탐지: {', '.join(pii_details)}"
-            return reason, details
+                confidence_pct = f"{entity['confidence']:.1%}"
+                pii_details.append(f"{entity['type']} '{entity['value']}' (신뢰도: {confidence_pct})")
+            detail_parts.append(f"탐지된 개인정보: {', '.join(pii_details)}")
         else:
-            return "개인정보 없음", ""
-    
-    def _generate_similarity_text(self, similarity_result: Dict[str, Any]) -> tuple[str, str]:
-        """유사도 분석 결과에서 reason과 details 텍스트 생성"""
+            detail_parts.append("개인정보가 발견되지 않았습니다")
+        
+        # 유사도 상세 정보
         if similarity_result["is_similar"]:
-            reason = f"유사 문서 탐지됨 (최대 {similarity_result['max_similarity']*100:.1f}%)"
+            # 임계값 이상 문서들
+            threshold_docs = []
+            for doc in similarity_result["matched_documents"]:
+                if doc["max_similarity"] >= similarity_result["threshold"]:
+                    threshold_docs.append(f"'{doc['document_title']}' ({doc['max_similarity']:.1%})")
             
-            # 매칭된 문서 정보
+            if threshold_docs:
+                detail_parts.append(f"임계값 이상 유사 문서: {', '.join(threshold_docs)}")
+        elif similarity_result["max_similarity"] > 0:
+            # 임계값 이하지만 가장 높은 유사도
             if similarity_result["matched_documents"]:
-                matched_docs = []
-                for doc in similarity_result["matched_documents"][:3]:  # 상위 3개만
-                    matched_docs.append(f"'{doc['document_title']}' ({doc['max_similarity']*100:.1f}%)")
-                details = f"유사 문서: {', '.join(matched_docs)}"
-            else:
-                details = ""
-            return reason, details
+                top_doc = similarity_result["matched_documents"][0]
+                detail_parts.append(f"최고 유사도 문서: '{top_doc['document_title']}' ({top_doc['max_similarity']:.1%} - 임계값 {similarity_result['threshold']:.1%} 미만)")
         else:
-            if similarity_result["max_similarity"] > 0:
-                reason = f"유사도 {similarity_result['max_similarity']*100:.1f}% (임계값 미만)"
-                
-                # 임계값 이하지만 최고 유사도 문서 정보 제공
-                if similarity_result["matched_documents"]:
-                    top_doc = similarity_result["matched_documents"][0]
-                    details = f"최고 유사 문서: '{top_doc['document_title']}' ({top_doc['max_similarity']*100:.1f}%)"
-                else:
-                    details = ""
-                return reason, details
-            else:
-                return "유사 문서 없음", ""
+            detail_parts.append("유사한 문서가 발견되지 않았습니다")
+        
+        return ". ".join(detail_parts) + "."
