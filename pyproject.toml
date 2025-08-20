@@ -1,14 +1,42 @@
 [project]
 name = "ai-tls-dlp-be"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-based TLS DLP Backend with PII Detection and Similarity Analysis"
 requires-python = ">=3.13"
 dependencies = [
-    "faker>=37.5.3",
+    # Web Framework
     "fastapi>=0.116.1",
-    "sqlalchemy>=2.0.43",
     "uvicorn>=0.35.0",
+    "python-multipart>=0.0.9",
+    
+    # Database
+    "sqlalchemy>=2.0.43",
+    "asyncpg>=0.29.0",  # 비동기 런타임용
+    "psycopg2-binary>=2.9.0",  # Alembic 마이그레이션용
+    "alembic>=1.12.0",
+    "greenlet>=3.0.0",  # SQLAlchemy 비동기 지원용
+    
+    # AI/ML Models
     "torch>=2.0.0",
     "transformers>=4.30.0",
     "tokenizers>=0.13.3",
+    "sentence-transformers>=2.2.0",
+    
+    # Vector Database
+    "chromadb>=0.4.0",
+    
+    # Caching
+    "redis>=5.0.0",
+    
+    # Text Processing
+    "kss>=4.0.0",  # Korean sentence splitter
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    
+    # Utils
+    "faker>=37.5.3",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.25.0",
+    "aiofiles>=24.1.0",
 ]
