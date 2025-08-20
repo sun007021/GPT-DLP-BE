@@ -10,7 +10,7 @@ class RobertaKoreanPIIDetector:
     """
     
     def __init__(self):
-        self.model_name = "psh3333/roberta-large-korean-pii3"
+        self.model_name = "psh3333/roberta-large-korean-pii5"
         self.tokenizer: AutoTokenizer | None = None
         self.model: AutoModelForTokenClassification | None = None
         self._load_model()
